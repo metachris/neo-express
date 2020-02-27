@@ -297,24 +297,38 @@ namespace NeoExpress
             }
         }
 
-        public static void ExportBlocks(string directory)
+        private static void ExportBlocks(RocksDbStore store, Stream stream)
         {
-            var store = new RocksDbStore(directory);
             var persistence = (Neo.Persistence.IPersistence)store;
             var blockHashes = store.GetBlocks().Find()
                 .OrderBy(kvp => kvp.Value.TrimmedBlock.Index)
                 .Select(kvp => kvp.Value.TrimmedBlock.Hash)
                 .ToList();
 
-            using var fs = new FileStream("chain.acc", FileMode.Create, FileAccess.Write, FileShare.Write);
-
-            fs.Write(BitConverter.GetBytes((uint)blockHashes.Count), 0, sizeof(uint));
+            stream.Write(BitConverter.GetBytes((uint)blockHashes.Count), 0, sizeof(uint));
             foreach (var blockHash in blockHashes)
             {
                 var block = Neo.Persistence.Helper.GetBlock(persistence, blockHash);
                 byte[] array = Neo.IO.Helper.ToArray(block);
-                fs.Write(BitConverter.GetBytes(array.Length), 0, sizeof(int));
-                fs.Write(array, 0, array.Length);
+                stream.Write(BitConverter.GetBytes(array.Length), 0, sizeof(int));
+                stream.Write(array, 0, array.Length);
+            }
+        }
+
+        public static void ExportBlocks(string directory, string exportFile, bool compress)
+        {
+            using var store = new RocksDbStore(directory);
+            if (compress)
+            {
+                using var fileStream = new FileStream(exportFile, FileMode.Create, FileAccess.Write, FileShare.Write);
+                using var archive = new ZipArchive(fileStream, ZipArchiveMode.Create);
+                using var archiveStream = archive.CreateEntry("chain.acc").Open();
+                ExportBlocks(store, archiveStream);
+            }
+            else
+            {
+                using var fileStream = new FileStream(exportFile, FileMode.Create, FileAccess.Write, FileShare.Write);
+                ExportBlocks(store, fileStream);
             }
         }
 

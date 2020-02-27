@@ -39,6 +39,16 @@ namespace NeoExpress.Commands
             [Option]
             private string Input { get; } = string.Empty;
 
+            [Option]
+            private string Output { get; } = string.Empty;
+
+            [Option]
+            private bool Compress { get; }
+
+            [Option]
+            private bool Force { get; }
+
+
             [Argument(0)]
             private int? NodeIndex { get; }
 
@@ -46,6 +56,22 @@ namespace NeoExpress.Commands
             {
                 try
                 {
+                    var output = string.IsNullOrEmpty(Output)
+                       ? Path.Combine(Directory.GetCurrentDirectory(), Compress ? $"chain.acc.zip" : "chain.acc")
+                       : Output;
+
+                    if (File.Exists(output))
+                    {
+                        if (Force)
+                        {
+                            File.Delete(output);
+                        }
+                        else
+                        {
+                            throw new Exception("You must specify force to overwrite exported blocks.");
+                        }
+                    }
+
                     var (chain, _) = Program.LoadExpressChain(Input);
                     var index = NodeIndex.GetValueOrDefault();
 
@@ -67,7 +93,9 @@ namespace NeoExpress.Commands
                         throw new Exception("cannot export empty blockchain");
                     }
 
-                    BlockchainOperations.ExportBlocks(folder);
+                    BlockchainOperations.ExportBlocks(folder, output, Compress);
+                    console.WriteLine($"Exported blocks to {output}");
+
                     return 0;
                 }
                 catch (Exception ex)
