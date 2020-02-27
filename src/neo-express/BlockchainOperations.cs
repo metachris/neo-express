@@ -6,6 +6,7 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Net;
 using System.Text;
@@ -293,6 +294,27 @@ namespace NeoExpress
             if (magic != checkPointMagic || scriptHash != account.ScriptHash)
             {
                 throw new Exception("Invalid Checkpoint");
+            }
+        }
+
+        public static void ExportBlocks(string directory)
+        {
+            var store = new RocksDbStore(directory);
+            var persistence = (Neo.Persistence.IPersistence)store;
+            var blockHashes = store.GetBlocks().Find()
+                .OrderBy(kvp => kvp.Value.TrimmedBlock.Index)
+                .Select(kvp => kvp.Value.TrimmedBlock.Hash)
+                .ToList();
+
+            using var fs = new FileStream("chain.acc", FileMode.Create, FileAccess.Write, FileShare.Write);
+
+            fs.Write(BitConverter.GetBytes((uint)blockHashes.Count), 0, sizeof(uint));
+            foreach (var blockHash in blockHashes)
+            {
+                var block = Neo.Persistence.Helper.GetBlock(persistence, blockHash);
+                byte[] array = Neo.IO.Helper.ToArray(block);
+                fs.Write(BitConverter.GetBytes(array.Length), 0, sizeof(int));
+                fs.Write(array, 0, array.Length);
             }
         }
 
